@@ -1,0 +1,31 @@
+name: takehometest
+services:
+  hardware:
+    image: lfhohmann/takehometest-hardware:latest
+    container_name: hardware
+    ports:
+      - "5001:5000"
+    networks:
+      - docker_network
+  driver:
+    build: ./driver
+    container_name: driver
+    depends_on:
+      - hardware    
+    ports:
+      - "6001:6001"
+    networks:
+      - docker_network
+  controller:
+    build: ./controller
+    container_name: controller
+    depends_on:
+      - driver
+    ports:
+      - "7001:7001"
+    networks:
+      - docker_network
+
+networks:
+  docker_network:
+    driver: bridge
