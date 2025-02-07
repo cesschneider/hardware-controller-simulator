@@ -16,6 +16,7 @@ private:
     std::string baseUrl;
     bool isValidParameter(const std::string& param, const std::string& value);
     bool isValidCommand(const std::string& command);
+    long getTimeoutForEndpoint(const std::string& endpoint);
     CURLcode performRequestWithTimeout(CURL* curl, long timeout_ms);
 };
 

@@ -101,6 +101,26 @@ bool HardwareAPI::isValidCommand(const std::string& command) {
     return false;
 }
 
+/**
+ - `/ping`, `/trigger`, `/get_frame`, `/get_state`, `/set_state={STATE}`, `/get_config={PARAMETER}`, `/set_config={PARAMETER}:{VALUE}`.
+    - 150ms.
+- `/reset`.
+    - 2000ms.
+- Time between a `trigger_ack` and the **image frame buffer** becoming availabe:
+    - Between 1000ms and 4500ms depending on `photometric_mode`.
+ */
+
+long HardwareAPI::getTimeoutForEndpoint(const std::string& endpoint) {
+    if (endpoint == "/reset") {
+        return 2000;
+    } else if (endpoint == "/trigger") {
+        return 4500;
+    } else {
+        // Default timeout for other endpoints
+        return 150;
+    }
+}
+
 // Add timeout handling for Hardware requests
 CURLcode HardwareAPI::performRequestWithTimeout(CURL* curl, long timeout_ms) {
     curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, timeout_ms);
@@ -124,6 +144,7 @@ std::string HardwareAPI::sendCommandWithRetry(const std::string& endpoint) {
         curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
         curl_easy_setopt(curl, CURLOPT_WRITEDATA, &readBuffer);
 
+        long timeout_ms = getTimeoutForEndpoint(endpoint);
         CURLcode res = performRequestWithTimeout(curl, timeout);
         if (res != CURLE_OK) {
             fprintf(stderr, "[HardwareAPI] curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
