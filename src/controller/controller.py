@@ -106,6 +106,15 @@ class Controller(threading.Thread):
 
         # Wait for response from socket and return it
         try:
+            response = self.queue_rx.get(timeout=15.0)
+            code = 200
+    
+            if response == "timeout_error":
+                code = 408
+            if response == "validation_error":
+                code = 400
+
+            return f"{response}", code
             return f"{self.queue_rx.get(timeout=15.0)}", 200
 
         except queue.Empty:

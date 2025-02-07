@@ -11,7 +11,7 @@
 
 #define PORT 6001
 
-HardwareAPI api("http://hardware:5001/");
+HardwareAPI api("http://hardware:5000/");
 
 void send_response(int client_socket, const std::string &response)
 {
@@ -30,7 +30,8 @@ void handle_client(int client_socket)
         if (bytes_received > 0)
         {
             std::cout << "[Socket] << " << buffer << std::endl;
-            std::string response = api.send(buffer);
+            //std::string response = api.send(buffer);
+            std::string response = api.sendCommandWithRetry(buffer);
             send_response(client_socket, response);
         }
         else
