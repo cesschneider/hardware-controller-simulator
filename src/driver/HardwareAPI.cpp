@@ -132,7 +132,6 @@ std::string HardwareAPI::sendCommandWithRetry(const std::string& endpoint) {
     CURL* curl = curl_easy_init();
     std::string readBuffer;
     std::string url = baseUrl + endpoint;
-    unsigned timeout = 100;
 
     if  (! isValidCommand(endpoint)) {
         fprintf(stderr, "[HardwareAPI] invalid endpoint: %s\n", endpoint.c_str());
@@ -145,7 +144,7 @@ std::string HardwareAPI::sendCommandWithRetry(const std::string& endpoint) {
         curl_easy_setopt(curl, CURLOPT_WRITEDATA, &readBuffer);
 
         long timeout_ms = getTimeoutForEndpoint(endpoint);
-        CURLcode res = performRequestWithTimeout(curl, timeout);
+        CURLcode res = performRequestWithTimeout(curl, timeout_ms);
         if (res != CURLE_OK) {
             fprintf(stderr, "[HardwareAPI] curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
             return "timeout_error";
