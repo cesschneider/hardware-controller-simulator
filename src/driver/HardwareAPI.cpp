@@ -111,9 +111,9 @@ bool HardwareAPI::isValidCommand(const std::string& command) {
  */
 
 long HardwareAPI::getTimeoutForEndpoint(const std::string& endpoint) {
-    if (endpoint == "/reset") {
+    if (endpoint == "reset") {
         return 2000;
-    } else if (endpoint == "/trigger") {
+    } else if (endpoint == "trigger") {
         return 4500;
     } else {
         // Default timeout for other endpoints
