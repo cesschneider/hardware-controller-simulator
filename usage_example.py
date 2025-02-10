@@ -31,17 +31,29 @@ if __name__ == "__main__":
     api = API(BASE_URL)
 
     api.send("/reset")
-    api.send("/get_state")
-
     api.send("/ping")
 
+    api.send("/get_state")
     api.send("/set_state=config")
     api.send("/get_state")
 
     api.send("/get_config=focus")
     api.send("/set_config=focus:800")
     api.send("/get_config=focus")
+
+    api.send("/get_config=gain")
+    api.send("/set_config=gain:+10")
+    api.send("/set_config=gain:-10")
+    api.send("/set_config=gain:+20")
+    api.send("/get_config=gain")
+
+    api.send("/get_config=exposure")
+    api.send("/set_config=exposure:100.5")
+
     api.send("/set_state=idle")
+
+    api.send("/trigger")
+    api.send("/get_frame")
 
     api.close()
 
