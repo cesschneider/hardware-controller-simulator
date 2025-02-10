@@ -9,9 +9,11 @@ WORKDIR /usr/src/app
 COPY main.cpp .
 COPY HardwareAPI.h .
 COPY HardwareAPI.cpp .
+COPY CommandValidator.h .
+COPY CommandValidator.cpp .
 
 # Compile
-RUN g++ main.cpp HardwareAPI.cpp -o driver -lcurl
+RUN g++ main.cpp HardwareAPI.cpp CommandValidator.cpp -o driver -lcurl
 
 EXPOSE 6001
 
