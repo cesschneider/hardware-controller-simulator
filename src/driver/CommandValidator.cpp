@@ -21,11 +21,85 @@ CommandValidator::CommandValidator() {
     validCommands["set_config"]["led_pattern"] = R"(^[a-h]$)";  // a-h
     validCommands["set_config"]["led_intensity"] = R"(^([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$)";  // 0-255
     validCommands["set_config"]["photometric_mode"] = R"(^[0-1]$)";  // 0 or 1
+
+    // Allowed commands in each state
+    validOperations["idle"] = {"ping", "trigger", "get_frame", "get_state", "set_state", "reset"};
+    validOperations["config"] = {"ping", "get_state", "set_state", "get_config", "set_config", "reset"};
+    validOperations["capturing"] = {"ping", "get_state", "reset"};
+
+    // Default configuration values
+    configValues["photometric_mode"] = "0";  // Default to off
+    configValues["led_pattern"] = "a";  // Default to a (ALL OFF)
 }
 
-bool CommandValidator::validateCommand(const std::string& input) {
+bool CommandValidator::setState(const std::string& newState) {
+    fprintf(stdout, "[CommandValidator] setConfig(): Setting state '%s'\n", newState.c_str());
+
+    // Check if the newState is valid
+    if (validCommands["set_state"].find(newState) != validCommands["set_state"].end()) {
+        currentState = newState;
+        return true;
+    }
+
+    fprintf(stderr, "[CommandValidator] setConfig(): Invalid state '%s'\n", newState.c_str());
+    return false;
+}
+
+bool CommandValidator::setConfig(const std::string& param, const std::string& value) {
+    fprintf(stdout, "[CommandValidator] setConfig(): Setting config '%s' with value '%s'\n", 
+        param.c_str(), value.c_str());
+
+    // Ensure we are in config state
+    if (currentState != "config") {
+        return false;
+    }
+
+    // Check if the parameter is valid
+    if (validCommands["set_config"].find(param) == validCommands["set_config"].end()) {
+        return false;
+    }
+
+    // Validate the value against the regex pattern
+    std::regex valuePattern(validCommands["set_config"][param]);
+    if (!std::regex_match(value, valuePattern)) {
+        return false;
+    }
+
+    // Set the value
+    configValues[param] = value;
+    return true;
+}
+
+bool CommandValidator::setConfigFromEndpoint(const std::string& endpoint) {
+    // Regex to match formats: command=value OR command=parameter:value
+    std::regex pattern(R"(^([\w]+)(?:=([\w]+)(?::([\w\.\+\-]+))?)?$)");
+    std::smatch match;
+
+    if (!std::regex_match(endpoint, match, pattern)) {
+        return false;  // Invalid format
+    }
+
+    std::string command = match[1];  // Extract command
+    std::string param = match[2];    // Extract parameter (optional)
+    std::string value = match[3];    // Extract value (optional)
+
+    return setConfig(param, value);
+}
+
+std::string CommandValidator::getConfig(const std::string& param) const {
+    if (configValues.find(param) != configValues.end()) {
+        return configValues.at(param);
+    }
+    return "";
+}
+
+std::string CommandValidator::getState() const {
+    return currentState;
+}
+
+bool CommandValidator::validateEndpoint(const std::string& endpoint) {
     // Check if it's a standalone command (e.g., "ping", "reset", "trigger")
-    if (standaloneCommands.find(input) != standaloneCommands.end()) {
+    if (standaloneCommands.find(endpoint) != standaloneCommands.end()) {
         return true;
     }
 
@@ -33,7 +107,7 @@ bool CommandValidator::validateCommand(const std::string& input) {
     std::regex pattern(R"(^([\w]+)(?:=([\w]+)(?::([\w\.\+\-]+))?)?$)");
     std::smatch match;
 
-    if (!std::regex_match(input, match, pattern)) {
+    if (!std::regex_match(endpoint, match, pattern)) {
         return false;  // Invalid format
     }
 
@@ -57,7 +131,25 @@ bool CommandValidator::validateCommand(const std::string& input) {
         return false;
     }
 
+    // Enforce interdependencies
+    if (param == "photometric_mode" && value == "1" && configValues["led_pattern"] != "a") {
+        return false;  // photometric_mode can only be set to 1 if led_pattern is "a"
+    }
+    if (param == "led_pattern" && configValues["photometric_mode"] == "1") {
+        return false;  // led_pattern cannot be changed if photometric_mode is "1"
+    }
+
     // Validate value using regex
     std::regex valuePattern(validCommands[command][param]);
     return std::regex_match(value, valuePattern);
+}
+
+bool CommandValidator::validateOperation(const std::string& endpoint) {
+
+    // Enforce that trigger and get_frame can only be used in idle
+    if ((endpoint == "trigger" || endpoint == "get_frame") && currentState != "idle") {
+        return false;
+    }
+
+    return true;
 }

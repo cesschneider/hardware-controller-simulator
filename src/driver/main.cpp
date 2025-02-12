@@ -30,8 +30,7 @@ void handle_client(int client_socket)
         if (bytes_received > 0)
         {
             std::cout << "[Socket] << " << buffer << std::endl;
-            //std::string response = api.send(buffer);
-            std::string response = api.sendCommandWithRetry(buffer);
+            std::string response = api.sendWithRetry(buffer);
             send_response(client_socket, response);
         }
         else

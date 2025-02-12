@@ -109,16 +109,17 @@ class Controller(threading.Thread):
             response = self.queue_rx.get(timeout=15.0)
             code = 200
     
-            if response == "timeout_error":
+            if response == "timeout_err":
                 code = 408
-            if response == "validation_error":
+            if response in ["validation_err", "operation_err"]:
                 code = 400
+            if response in ["trigger_err", "get_frame_err", "error"]:
+                code = 500
 
             return f"{response}", code
-            return f"{self.queue_rx.get(timeout=15.0)}", 200
 
         except queue.Empty:
-            return f"timeout", 408
+            return f"timeout_err", 408
 
 
 if __name__ == "__main__":
