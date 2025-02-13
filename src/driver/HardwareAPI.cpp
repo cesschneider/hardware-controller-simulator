@@ -1,6 +1,7 @@
 #include "HardwareAPI.h"
 #include "CommandValidator.h"
 #include <curl/curl.h>
+#include <string>
 
 #define REQUEST_RETRIES 3
 
@@ -10,19 +11,34 @@ HardwareAPI::HardwareAPI(const std::string &baseUrl)
     CommandValidator validator;
 }
 
-// Initialize Hardware tracking variables
-void HardwareAPI::initializeVariables() 
+void HardwareAPI::refreshConfig() 
 {
-    fprintf(stdout, "[HardwareAPI] Initializing current hardware variables\n");
+    std::cout << "[HardwareAPI] Refresing hardware configuration parameters" << std::endl;
 
-    fprintf(stdout, "[HardwareAPI] initializeVariables(): Setting state to 'config'\n");
-    this->send("set_state=config");
-    validator.setConfig("photometric_mode", this->getValueFromResponse(this->send("get_config=photometric_mode")));
-    validator.setConfig("led_pattern", this->getValueFromResponse(this->send("get_config=led_pattern")));
+    char endpoint[50];
+    std::string response;
+    std::unordered_set<std::string> configList = {
+        "focus", "exposure", "gain", "led_pattern", "led_intensity", "photometric_mode"
+    };
 
-    fprintf(stdout, "[HardwareAPI] initializeVariables(): Setting state to 'idle'\n");
-    this->send("set_state=idle");
-    this->currentState = this->getValueFromResponse(this->send("get_state"));
+    memset(endpoint, 0, sizeof(endpoint));
+    send("set_state=config");
+
+    for (const std::string& config : configList) {
+        std::cout << "[HardwareAPI] refreshConfig(): Getting value for parameter: " << config << std::endl;
+
+        snprintf(endpoint, sizeof(endpoint), "get_config=%s", config.c_str());
+        response = send(endpoint);
+
+        if (response == "error" || response == "timeout_err") {
+            std::cerr << "[HardwareAPI] refreshConfig(): Invalid response from hardware: " << response << std::endl;
+            send("reset");
+        } else {
+            validator.setConfig(config, getValueFromResponse(response));
+        }
+    }
+
+    send("set_state=idle");
 }
 
 std::string HardwareAPI::getValueFromResponse(const std::string& input) {
@@ -39,12 +55,18 @@ size_t HardwareAPI::WriteCallback(void *contents, size_t size, size_t nmemb, voi
     return size * nmemb;
 }
 
-std::string HardwareAPI::send(const std::string &command)
+std::string HardwareAPI::send(const std::string &endpoint)
 {
     CURL *curl;
     CURLcode res;
     std::string readBuffer;
-    std::string url = baseUrl + command;
+    std::string url = baseUrl + endpoint;
+
+    std::cout << "[HardwareAPI] Sending command to hardware: " << endpoint << std::endl;
+
+    // Add timeout handling for Hardware requests
+    long timeoutMs = getTimeoutForEndpoint(endpoint);
+    std::cout << "[HardwareAPI] Setting timeout to: " << std::to_string(timeoutMs) << std::endl;
 
     curl = curl_easy_init();
     if (curl)
@@ -52,17 +74,19 @@ std::string HardwareAPI::send(const std::string &command)
         curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
         curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
         curl_easy_setopt(curl, CURLOPT_WRITEDATA, &readBuffer);
-        res = curl_easy_perform(curl);
+        curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, timeoutMs);
 
+        res = curl_easy_perform(curl);
         if (res != CURLE_OK)
         {
             fprintf(stderr, "[HardwareAPI] curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
+            return "timeout_err";
         }
 
         curl_easy_cleanup(curl);
     }
 
-    std::cout << "[HardwareAPI] << " << readBuffer << std::endl;
+    std::cout << "[HardwareAPI] send() readBuffer: " << readBuffer << std::endl;
 
     return readBuffer;
 }
@@ -86,44 +110,73 @@ The value of this mode impacts in the **Hardware** performance in the following 
  */
 
 long HardwareAPI::getTimeoutForEndpoint(const std::string& endpoint) {
+    std::cout << "[HardwareAPI] Getting timeout for endpoint: " << endpoint.c_str() << std::endl;
+
     if (endpoint == "reset") {
         return 2000;
     } else if (endpoint == "trigger") {
-        if (this->photometricMode == "0") {
+        if (validator.getConfig("photometric_mode") == "0") {
             return 3000;
-        } else if (this->photometricMode == "1") {
+        } else if (validator.getConfig("photometric_mode") == "1") {
             return 4500;
         }
     } 
-    // Default timeout for other commands
+    // Default timeout for other endpoints
     return 150;
 }
 
 // Handle errors and timeouts
 std::string HardwareAPI::sendWithRetry(const std::string& endpoint) {
+    /*
     CURL* curl = curl_easy_init();
     CURLcode res;
     std::string readBuffer;
     std::string url = baseUrl + endpoint;
-
-    // Add timeout handling for Hardware requests
-    long timeoutMs = getTimeoutForEndpoint(endpoint);
+    */
 
     // Initialize Hardware tracking variables
-    if (! this->isVariableInitialized) {
-        this->initializeVariables();
-        this->isVariableInitialized = true;
+    if (! this->isConfigRefreshed) {
+        this->refreshConfig();
+        this->isConfigRefreshed = true;
     }
     
     if  (! validator.validateEndpoint(endpoint)) {
-        fprintf(stderr, "[HardwareAPI] Invalid endpoint or parameter: %s\n", endpoint.c_str());
+        fprintf(stderr, "[HardwareAPI] sendWithRetry(): Invalid endpoint or parameter: %s\n", endpoint.c_str());
         return "validation_err";
     }
 
     if  (! validator.validateOperation(endpoint)) {
-        fprintf(stderr, "[HardwareAPI] Illegal operation for current state or parameters: %s\n", endpoint.c_str());
+        fprintf(stderr, "[HardwareAPI] sendWithRetry(): Illegal operation for state '%s': %s\n", 
+            validator.getState().c_str(), endpoint.c_str());
         return "operation_err";
     }
+
+    std::string response;
+    for (int retries = 1; retries <= REQUEST_RETRIES; retries++) {
+        fprintf(stdout, "[HardwareAPI] sendWithRetry(): Attempting to perform request #%i\n", retries);
+        response = send(endpoint);
+
+        if (response == "error" || response == "timeout_err") {
+            fprintf(stderr, "[HardwareAPI] sendWithRetry(): Invalid response: %s\n", response.c_str());
+            fprintf(stderr, "[HardwareAPI] sendWithRetry(): Sending reset command to hardware\n");
+            send("reset");
+            refreshConfig();
+        } else {
+            break;
+        }
+
+    }
+
+    // Avoid duplicated get_state command requests
+    if (endpoint != "get_state") {
+        validator.setState(getValueFromResponse(send("get_state")));
+    }
+
+    return response;
+
+    /*
+    // Add timeout handling for Hardware requests
+    long timeoutMs = getTimeoutForEndpoint(endpoint);
 
     if (curl) {
         curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
@@ -161,4 +214,5 @@ std::string HardwareAPI::sendWithRetry(const std::string& endpoint) {
 
     std::cout << "[HardwareAPI] << " << readBuffer << std::endl;
     return readBuffer;
+    */
 }

@@ -33,7 +33,7 @@ CommandValidator::CommandValidator() {
 }
 
 bool CommandValidator::setState(const std::string& newState) {
-    fprintf(stdout, "[CommandValidator] setConfig(): Setting state '%s'\n", newState.c_str());
+    fprintf(stdout, "[CommandValidator] setState(): Setting current state to '%s'\n", newState.c_str());
 
     // Check if the newState is valid
     if (validCommands["set_state"].find(newState) != validCommands["set_state"].end()) {
@@ -41,7 +41,7 @@ bool CommandValidator::setState(const std::string& newState) {
         return true;
     }
 
-    fprintf(stderr, "[CommandValidator] setConfig(): Invalid state '%s'\n", newState.c_str());
+    fprintf(stderr, "[CommandValidator] setState(): Invalid state '%s'\n", newState.c_str());
     return false;
 }
 
