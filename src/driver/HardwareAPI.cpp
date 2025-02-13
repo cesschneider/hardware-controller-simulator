@@ -2,8 +2,11 @@
 #include "CommandValidator.h"
 #include <curl/curl.h>
 #include <string>
+#include <thread>  // For std::this_thread::sleep_for
+#include <chrono>  // For std::chrono::milliseconds
 
-#define REQUEST_RETRIES 3
+#define REQUEST_RETRIES   3
+#define REQUEST_WAIT_TIME 3000
 
 HardwareAPI::HardwareAPI(const std::string &baseUrl)
 {
@@ -32,7 +35,7 @@ void HardwareAPI::refreshConfig()
 
         if (response == "error" || response == "timeout_err") {
             std::cerr << "[HardwareAPI] refreshConfig(): Invalid response from hardware: " << response << std::endl;
-            send("reset");
+            //send("reset");
         } else {
             validator.setConfig(config, getValueFromResponse(response));
         }
@@ -65,8 +68,8 @@ std::string HardwareAPI::send(const std::string &endpoint)
     std::cout << "[HardwareAPI] Sending command to hardware: " << endpoint << std::endl;
 
     // Add timeout handling for Hardware requests
-    long timeoutMs = getTimeoutForEndpoint(endpoint);
-    std::cout << "[HardwareAPI] Setting timeout to: " << std::to_string(timeoutMs) << std::endl;
+    int timeoutMs = getTimeoutForEndpoint(endpoint);
+    fprintf(stdout, "[HardwareAPI] Setting timeout for endpoint '%s' to %i\n", endpoint.c_str(), timeoutMs);
 
     curl = curl_easy_init();
     if (curl)
@@ -109,12 +112,10 @@ The value of this mode impacts in the **Hardware** performance in the following 
     *(time between the trigger being acknowledged and the image frame buffer becoming available)*
  */
 
-long HardwareAPI::getTimeoutForEndpoint(const std::string& endpoint) {
-    std::cout << "[HardwareAPI] Getting timeout for endpoint: " << endpoint.c_str() << std::endl;
-
+int HardwareAPI::getTimeoutForEndpoint(const std::string& endpoint) {
     if (endpoint == "reset") {
         return 2000;
-    } else if (endpoint == "trigger") {
+    } else if (endpoint == "trigger" || endpoint == "get_frame" ) {
         if (validator.getConfig("photometric_mode") == "0") {
             return 3000;
         } else if (validator.getConfig("photometric_mode") == "1") {
@@ -127,12 +128,6 @@ long HardwareAPI::getTimeoutForEndpoint(const std::string& endpoint) {
 
 // Handle errors and timeouts
 std::string HardwareAPI::sendWithRetry(const std::string& endpoint) {
-    /*
-    CURL* curl = curl_easy_init();
-    CURLcode res;
-    std::string readBuffer;
-    std::string url = baseUrl + endpoint;
-    */
 
     // Initialize Hardware tracking variables
     if (! this->isConfigRefreshed) {
@@ -145,31 +140,18 @@ std::string HardwareAPI::sendWithRetry(const std::string& endpoint) {
         return "validation_err";
     }
 
-    if  (! validator.validateOperation(endpoint)) {
-        fprintf(stderr, "[HardwareAPI] sendWithRetry(): Illegal operation for state '%s': %s\n", 
-            validator.getState().c_str(), endpoint.c_str());
-        return "operation_err";
-    }
-
     std::string response;
     for (int retries = 1; retries <= REQUEST_RETRIES; retries++) {
         fprintf(stdout, "[HardwareAPI] sendWithRetry(): Attempting to perform request #%i\n", retries);
         response = send(endpoint);
 
-        if (response == "error" || response == "timeout_err") {
-            fprintf(stderr, "[HardwareAPI] sendWithRetry(): Invalid response: %s\n", response.c_str());
-            fprintf(stderr, "[HardwareAPI] sendWithRetry(): Sending reset command to hardware\n");
-            send("reset");
-            refreshConfig();
+        if (response == "timeout_err") {
+            std::cout << "Retry " << retries << " failed. Retrying in " << REQUEST_WAIT_TIME << "ms...\n";
+            std::this_thread::sleep_for(std::chrono::milliseconds(REQUEST_WAIT_TIME));
         } else {
             break;
         }
 
-    }
-
-    // Avoid duplicated get_state command requests
-    if (endpoint != "get_state") {
-        validator.setState(getValueFromResponse(send("get_state")));
     }
 
     return response;

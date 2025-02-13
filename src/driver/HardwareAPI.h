@@ -18,7 +18,7 @@ private:
     bool isConfigRefreshed;
 
     static size_t WriteCallback(void *contents, size_t size, size_t nmemb, void *userp);
-    long getTimeoutForEndpoint(const std::string& endpoint);
+    int getTimeoutForEndpoint(const std::string& endpoint);
     std::string getValueFromResponse(const std::string& response);
     void refreshConfig(); 
 };

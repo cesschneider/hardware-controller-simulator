@@ -33,6 +33,11 @@ if __name__ == "__main__":
     api.send("/resett") # invalid command
     api.send("/ping")
 
+    api.send("/get_state")
+    api.send("/set_state=config")
+    api.send("/set_state=capture") # invalid state value
+    api.send("/get_state")
+
     '''
     api.send("/set_state=idle")
     api.send("/trigger")
@@ -41,10 +46,6 @@ if __name__ == "__main__":
     api.send("/get_frame")
     api.send("/reset")
 
-    api.send("/get_state")
-    api.send("/set_state=config")
-    api.send("/set_state=capture") # invalid state value
-    api.send("/get_state")
     '''
 
     '''
@@ -68,17 +69,16 @@ if __name__ == "__main__":
     '''
 
     api.send("/get_state")
-    api.send("/get_config=photometric_mode") # must return error as state is not set to config
+    #api.send("/get_config=photometric_mode") # must return error as state is not set to config
 
     api.send("/set_state=config")
+    api.send("/set_config=led_pattern:a") 
     api.send("/set_config=photometric_mode:1")
     api.send("/set_config=led_pattern:b") # must return an error, invalid operation
 
-    api.send("/set_state=config")
     api.send("/set_config=photometric_mode:0")
     api.send("/set_config=led_pattern:b") # must accept new value
 
-    '''
     api.send("/get_config=focus")
     api.send("/set_config=focus:800")
     api.send("/set_config=focus:1800") # invalid
@@ -98,6 +98,8 @@ if __name__ == "__main__":
     api.send("/set_config=photometric_mode:0")
     api.send("/get_config=photometric_mode")
 
+    '''
+
     api.send("/trigger") # invalid operation
     api.send("/set_state=idle")
     api.send("/trigger")
@@ -112,20 +114,36 @@ if __name__ == "__main__":
     api.send("/set_state=config")
     api.send("/set_config=photometric_mode:1")
     api.send("/get_config=photometric_mode")
+    '''
 
     api.send("/set_state=idle")
+    time.sleep(5) # waiting 5 seconds before send next request
+
+    api.send("/get_state")
+
     api.send("/trigger")
-    api.send("/get_frame") # this should return an error because didn't wait enough time
+    #api.send("/get_frame") # this should return an error because didn't wait enough time
 
     time.sleep(5) # waiting 5 seconds until response is available
-    api.send("/get_frame")
+    api.send("/get_state")
 
     time.sleep(5) # waiting 5 seconds until response is available
-    api.send("/get_frame")
+    api.send("/get_state")
 
     time.sleep(5) # waiting 5 seconds until response is available
+    api.send("/get_state")
+
+    time.sleep(5) # waiting 5 seconds until response is available
+    api.send("/get_state")
+
+    time.sleep(5) # waiting 5 seconds until response is available
+    api.send("/get_state")
+
+    time.sleep(5) # waiting 5 seconds until response is available
+    api.send("/get_state")
+
     api.send("/get_frame")
-    '''
+    api.send("/get_state")
 
     api.close()
 
